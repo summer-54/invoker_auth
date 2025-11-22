@@ -4,15 +4,12 @@ use rand::CryptoRng;
 
 use sequoia_openpgp::{
     self as pgp,
-    parse::{
-        Parse,
-        stream::{DetachedVerifierBuilder, MessageLayer, VerificationHelper},
-    },
+    parse::stream::{DetachedVerifierBuilder, MessageLayer, VerificationHelper},
     policy::Policy,
     serialize::stream::{Message, Signer},
 };
 
-pub use pgp::{Cert, cert::CertParser, policy};
+pub use pgp::{Cert, parse::Parse, policy};
 
 use anyhow::{Error, Result, anyhow};
 

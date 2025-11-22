@@ -3,7 +3,7 @@ use std::io::Write;
 use rand::CryptoRng;
 
 use sequoia_openpgp::{
-    self as pgp, Cert,
+    self as pgp,
     parse::{
         Parse,
         stream::{DetachedVerifierBuilder, MessageLayer, VerificationHelper},
@@ -12,7 +12,7 @@ use sequoia_openpgp::{
     serialize::stream::{Message, Signer},
 };
 
-pub use pgp::{cert::CertParser, policy};
+pub use pgp::{Cert, cert::CertParser, policy};
 
 use anyhow::{Error, Result, anyhow};
 

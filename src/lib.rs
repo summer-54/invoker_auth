@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use rand::CryptoRng;
+use rand::{CryptoRng, RngCore};
 
 use sequoia_openpgp::{
     self as pgp,
@@ -50,7 +50,7 @@ pub struct Challenge {
 }
 
 impl Challenge {
-    pub fn generate(len: usize, rng: &mut impl CryptoRng) -> Self {
+    pub fn generate<R: CryptoRng + RngCore>(len: usize, rng: &mut R) -> Self {
         let mut bytes = vec![0u8; len].into_boxed_slice();
         rng.fill_bytes(&mut bytes);
         Self { bytes }

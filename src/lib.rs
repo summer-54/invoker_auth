@@ -45,22 +45,43 @@ impl<'a> VerificationHelper for Helper<'a> {
     }
 }
 
-pub struct Challenge {
-    bytes: Box<[u8]>,
+pub struct Challenge(Box<[u8]>);
+pub struct Solution(Box<[u8]>);
+
+impl From<&[u8]> for Challenge {
+    fn from(bytes: &[u8]) -> Self {
+        Self(Box::from(bytes))
+    }
+}
+
+impl std::ops::Deref for Challenge {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
+}
+
+impl From<&[u8]> for Solution {
+    fn from(bytes: &[u8]) -> Self {
+        Self(Box::from(bytes))
+    }
+}
+
+impl std::ops::Deref for Solution {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
 }
 
 impl Challenge {
     pub fn generate<R: CryptoRng + RngCore>(len: usize, rng: &mut R) -> Self {
         let mut bytes = vec![0u8; len].into_boxed_slice();
         rng.fill_bytes(&mut bytes);
-        Self { bytes }
+        Self(bytes)
     }
 
-    pub fn from_bytes(bytes: Box<[u8]>) -> Self {
-        Self { bytes }
-    }
-
-    pub fn solve(&self, cert: &Cert, policy: &impl Policy) -> Result<Box<[u8]>> {
+    pub fn solve(&self, cert: &Cert, policy: &impl Policy) -> Result<Solution> {
         let key = cert
             .keys()
             .supported()
@@ -74,45 +95,52 @@ impl Challenge {
             .clone()
             .into_keypair()?;
 
-        let mut solution = Vec::<u8>::new();
-        let mut sig = Signer::new(Message::new(&mut solution), key)?
+        let mut bytes = Vec::<u8>::new();
+        let mut sig = Signer::new(Message::new(&mut bytes), key)?
             .detached()
             .build()?;
 
-        sig.write_all(&self.bytes)?;
+        sig.write_all(&self.0)?;
         sig.finalize()?;
-        Ok(solution.into_boxed_slice())
+        Ok(Solution(bytes.into()))
     }
+}
 
-    pub fn bytes(&self) -> &Box<[u8]> {
-        &self.bytes
-    }
-
-    pub fn check_solution(&self, solution: &[u8], cert: &Cert, policy: &impl Policy) -> Result<()> {
-        let mut verifier = DetachedVerifierBuilder::from_bytes(solution)?.with_policy(
+impl Solution {
+    pub fn verify(&self, challenge: &Challenge, cert: &Cert, policy: &impl Policy) -> Result<()> {
+        let mut verifier = DetachedVerifierBuilder::from_bytes(&**challenge)?.with_policy(
             policy,
             None,
             Helper(cert),
         )?;
-        verifier.verify_bytes(&self.bytes)?;
+        verifier.verify_bytes(&self.0)?;
         Ok(())
     }
 }
 
 #[test]
 fn challendge_life_cycle() {
+    use std::{io::Read, str::FromStr};
     let chg = Challenge::generate(100, &mut rand::rng());
-    let bytes = chg.bytes().clone();
+    let bytes: Box<[u8]> = Box::from(&*chg);
 
     dbg!("send to invoker");
 
-    let chg = Challenge::from_bytes(bytes);
+    let chg = Challenge::from(&*bytes);
     let cert = Cert::from_file("tests/sec.key").unwrap();
     let solution = chg.solve(&cert, &policy::StandardPolicy::new()).unwrap();
+    let bytes: Box<[u8]> = Box::from(&*solution);
 
     dbg!("send to manager");
 
-    let cert = Cert::from_file("tests/pub.key").unwrap();
-    chg.check_solution(&solution, &cert, &policy::StandardPolicy::new())
+    let solution = Solution::from(&*bytes);
+    let mut ct = String::new();
+    std::fs::File::open("tests/pub.key")
+        .unwrap()
+        .read_to_string(&mut ct)
+        .unwrap();
+    let cert = Cert::from_str(&*ct).unwrap();
+    solution
+        .verify(&chg, &cert, &policy::StandardPolicy::new())
         .unwrap();
 }

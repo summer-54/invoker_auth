@@ -108,12 +108,9 @@ impl Challenge {
 
 impl Solution {
     pub fn verify(&self, challenge: &Challenge, cert: &Cert, policy: &impl Policy) -> Result<()> {
-        let mut verifier = DetachedVerifierBuilder::from_bytes(&**challenge)?.with_policy(
-            policy,
-            None,
-            Helper(cert),
-        )?;
-        verifier.verify_bytes(&self.0)?;
+        let verifier = DetachedVerifierBuilder::from_bytes(&self.0)?;
+        let mut verifier = verifier.with_policy(policy, None, Helper(cert))?;
+        verifier.verify_bytes(&**challenge)?;
         Ok(())
     }
 }
@@ -121,7 +118,7 @@ impl Solution {
 #[test]
 fn challendge_life_cycle() {
     use std::{io::Read, str::FromStr};
-    let chg = Challenge::generate(100, &mut rand::rng());
+    let chg = Challenge::generate(10, &mut rand::rng());
     let bytes: Box<[u8]> = Box::from(&*chg);
 
     dbg!("send to invoker");
